@@ -8,7 +8,7 @@ import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import cookieParser from 'cookie-parser'
-import { readFoodList, listSheetTitles, readRange, searchFood, findUserByEmail, appendUser, duplicateUserTemplate, ensureUserTab, writeGeneralInfo, readDailyBudget, findBudgetToday, upsertBudgetRow, appendProgressRow } from './gsheets'
+import { readFoodList, listSheetTitles, readRange, searchFood, findUserByEmail, appendUser, duplicateUserTemplate, ensureUserTab, writeGeneralInfo, readDailyBudget, findBudgetToday, upsertBudgetRow, appendProgressRow } from './gsheets.js'
 
 const prisma = new PrismaClient()
 const app = express()
