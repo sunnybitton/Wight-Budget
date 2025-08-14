@@ -33,6 +33,9 @@
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.2.1",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/cors": "^2.8.17",
+    "@types/morgan": "^1.9.6",
     "prisma": "^6.13.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2"
