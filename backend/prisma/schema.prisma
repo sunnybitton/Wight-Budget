@@ -1,0 +1,80 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite" // dev; switch to postgresql in prod
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  profile      Profile?
+  foodLogs     FoodLog[]
+  weightLogs   WeightLog[]
+  refreshTokens RefreshToken[]
+}
+
+model Profile {
+  userId           String  @id
+  user             User    @relation(fields: [userId], references: [id])
+  heightCm         Int
+  currentWeightKg  Decimal
+  goalWeightKg     Decimal
+  targetDate       DateTime?
+  gender           String
+  age              Int
+  activityLevel    ActivityLevel
+  dailyDubyBudget  Int
+}
+
+enum ActivityLevel {
+  sedentary
+  light
+  moderate
+  intense
+}
+
+model FoodItem {
+  id    String  @id @default(uuid())
+  name  String  @unique
+  duby  Decimal
+  unit  String
+  logs  FoodLog[]
+}
+
+model FoodLog {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id])
+  foodItemId String
+  portion    Decimal
+  occurredAt DateTime @default(now())
+  dubyCost   Decimal
+}
+
+model WeightLog {
+  id       String   @id @default(uuid())
+  user     User     @relation(fields: [userId], references: [id])
+  userId   String
+  weightKg Decimal
+  date     DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,189 @@
+**Weight Budget — Web App Specification (Mobile-Style UI + API Backend)**
+
+---
+
+## 📅 Project Overview
+
+**App Name:** Weight Budget
+
+**Purpose:** Help users manage their diet using a daily budget system based on a proprietary currency called "Duby" coins. The app mimics budgeting apps with a weight-loss twist (inspired by Weight Watchers but Duby-based).
+
+**Target Platform:** Web application (PWA-capable), designed to look and feel like a native mobile app.
+
+**Backend:** First-class REST API (Node.js) backed by a relational database (PostgreSQL). No Google Apps Script.
+
+**User Flow:** Register → Onboarding (Profile Setup) → Dashboard → Add Food → Weigh-In → Edit Profile
+
+---
+
+## 🎯 Product Requirements
+
+- **Mobile-style UI on Web:** Centered mobile frame (max-width 420px), full-height views, bottom spacing for on-screen keyboards. Mobile-first, responsive breakpoints for larger screens.
+- **Offline-ready basics:** PWA manifest and service worker (cache shell, tolerate brief offline; queue writes for retry where practical later).
+- **Accessibility:** Semantic HTML, proper labels, focus states, and keyboard navigation.
+
+---
+
+## 🗄️ Data Model (Database: PostgreSQL)
+
+- **users**
+  - id (uuid, pk)
+  - name (text)
+  - email (text unique)
+  - password_hash (text)
+  - created_at (timestamptz)
+
+- **profiles** (1:1 with users)
+  - user_id (uuid pk, fk → users.id)
+  - height_cm (int)
+  - current_weight_kg (numeric)
+  - goal_weight_kg (numeric)
+  - target_date (date)
+  - gender (text)
+  - age (int)
+  - activity_level (enum: sedentary|light|moderate|intense)
+  - daily_duby_budget (int)
+
+- **food_items** (seeded, editable later)
+  - id (uuid pk)
+  - name (text)
+  - duby (numeric)
+  - unit (text)
+
+- **food_logs**
+  - id (uuid pk)
+  - user_id (uuid fk)
+  - food_item_id (uuid fk)
+  - portion (numeric)
+  - occurred_at (timestamptz)
+  - duby_cost (numeric)  // denormalized for fast reads
+
+- **weight_logs**
+  - id (uuid pk)
+  - user_id (uuid fk)
+  - weight_kg (numeric)
+  - date (date)
+
+- **refresh_tokens** (optional if using refresh tokens)
+  - id (uuid pk)
+  - user_id (uuid fk)
+  - token_hash (text)
+  - expires_at (timestamptz)
+
+---
+
+## 🔐 Authentication & Sessions
+
+- **Auth:** Email + password.
+- **Security:**
+  - Hash passwords with bcrypt.
+  - Validate inputs with zod on both client and server.
+  - Rate limit auth endpoints.
+- **Sessions:**
+  - Option A (default): JWT access token + HttpOnly secure cookie, short-lived, with refresh token rotation.
+  - Option B: Session table with server-side sessions and cookie session id.
+
+---
+
+## 🔌 REST API (Node.js + Express + Prisma)
+
+Base URL: `/api`
+
+- `POST /auth/register` → body: { name, email, password }
+- `POST /auth/login` → body: { email, password }
+- `POST /auth/logout`
+- `GET /me` → returns auth user and profile
+- `PUT /me/profile` → body: { height_cm, goal_weight_kg, target_date, activity_level, gender, age }
+- `GET /food` → list of food items
+- `POST /food-log` → body: { food_item_id, portion, occurred_at? }
+- `GET /food-log?from=...&to=...` → list entries
+- `POST /weight-log` → body: { weight_kg, date? }
+- `GET /weight-log?from=...&to=...`
+- `GET /dashboard` → returns: remaining_duby_today, today_entries, recent_weight, streaks (optional)
+
+Notes:
+- Compute `daily_duby_budget` server-side on onboarding and when profile updates (BMR → Duby formula).
+- Return denormalized, display-ready shapes for dashboard to reduce client compute.
+
+---
+
+## 🖥️ Frontend (React + Vite + TypeScript)
+
+- **Routing:** React Router, route-based code splitting.
+- **Data fetching:** React Query for caching, retries, and background refetching.
+- **Forms & validation:** React Hook Form + zod.
+- **Styling:** Tailwind CSS.
+- **Component primitives:**
+  - App shell: centered container `max-w-[420px] mx-auto h-dvh`.
+  - Page header with title and optional actions.
+  - Button, Input, Select, Sheet/Modal.
+
+### Pages
+- `/` → If authenticated redirect to `/dashboard`, else `/auth`.
+- `/auth` → Login/Register tabs.
+- `/onboarding` → Profile intake form; on submit computes budget and redirects to dashboard.
+- `/dashboard` →
+  - Header: Remaining Duby Today, next weigh-in hint.
+  - Daily Log list (receipt-style): `time`, `food`, `duby cost`.
+  - Optional: mini weight trend.
+  - Actions: `+ Add Food`, `Weigh-In`, `Edit Profile`, `Logout`.
+- `/add-food` → Search food, portion, time; submit to `/food-log`.
+- `/weigh-in` → Weight + date; submit to `/weight-log`.
+- `/profile` → Edit profile fields; submit to `/me/profile`.
+
+---
+
+## 🧮 Domain Logic
+
+- **BMR & Duby Budget:**
+  - Compute BMR using Mifflin-St Jeor.
+  - Map BMR and activity to daily Duby via simple linear or tiered function.
+- **Duby cost of entry:** `duby_cost = food_item.duby × portion` (server-enforced).
+- **Remaining Duby Today:** `daily_duby_budget - sum(duby_cost for today)` (server-provided and cached on client).
+
+---
+
+## 🔒 Security & Compliance
+
+- Input validation (zod) and output schemas.
+- Rate limiting (e.g., 10 req/min per IP for auth).
+- CORS locked to frontend origin in non-local.
+- HttpOnly, Secure, SameSite cookies.
+- Do not store secrets in client; use server-side env vars.
+
+---
+
+## 🧱 Tech Stack Summary
+
+- **Frontend:** React 18, Vite, TypeScript, React Router, React Query, Tailwind CSS.
+- **Backend:** Node.js (Express), Prisma ORM, PostgreSQL, zod, bcrypt, jsonwebtoken, Helmet, rate limiter.
+- **Infra/Dev:**
+  - Local DB via Docker (Postgres) or a managed dev DB (Supabase/Railway).
+  - Env management via `.env` (frontend uses `VITE_`-prefixed vars only).
+  - Lint/format: ESLint + Prettier.
+
+---
+
+## 🚀 Deployment Plan
+
+- **Backend**: Dockerized Express app → deploy on Render/Railway/Fly.io. Attach managed Postgres. Run migrations on release.
+- **Frontend**: Static build (`vite build`) served by Netlify/Vercel/Cloudflare Pages. Set `VITE_API_BASE_URL` to backend URL.
+- **Domains & SSL**: Use platform-managed TLS. Configure CORS accordingly.
+
+---
+
+## 🔁 Migration Notes (from prior plan)
+
+- Remove Google Sheets and Apps Script entirely.
+- Replace sheet tabs with relational schema above.
+- Replace Apps Script endpoints with REST API endpoints listed.
+
+---
+
+## ✅ Acceptance Criteria
+
+- Web app renders in a mobile-styled frame and functions on desktop and mobile browsers.
+- Users can register, login, complete onboarding, view dashboard, add food, log weight, and edit profile.
+- All data persists in Postgres via the API. No Google Apps Script is used.
+- Basic PWA install prompt and offline shell available.
+
